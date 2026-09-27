@@ -49,7 +49,9 @@ class Settings:
 
     @classmethod
     def load(cls) -> "Settings":
-        load_dotenv(ENV_FILE, override=True)
+        if ENV_FILE.exists():
+            _ensure_utf8(ENV_FILE)
+            load_dotenv(ENV_FILE, override=True, encoding="utf-8")
         env = os.environ.get
         return cls(
             anthropic_api_key=env("ANTHROPIC_API_KEY", ""),
@@ -85,19 +87,40 @@ class Settings:
         return missing
 
 
+def _ensure_utf8(path: Path) -> None:
+    """Re-save a .env written in the Windows default encoding (e.g. cp1252) as UTF-8."""
+    raw = path.read_bytes()
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        import locale
+        text = raw.decode(locale.getpreferredencoding(False) or "cp1252", errors="replace")
+        path.write_text(text, encoding="utf-8")
+
+
+def _quote(value: str) -> str:
+    """Single-quote a value so characters like # = spaces or quotes survive in .env."""
+    value = value.strip()
+    if value == "":
+        return ""
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 def write_env(values: dict[str, str]) -> None:
     """Create or update keys in the .env file, keeping any other lines."""
-    lines = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
+    if ENV_FILE.exists():
+        _ensure_utf8(ENV_FILE)
+    lines = ENV_FILE.read_text(encoding="utf-8").splitlines() if ENV_FILE.exists() else []
     remaining = dict(values)
     out = []
     for line in lines:
         key = line.split("=", 1)[0].strip()
         if key in remaining and not line.lstrip().startswith("#"):
-            out.append(f"{key}={remaining.pop(key)}")
+            out.append(f"{key}={_quote(remaining.pop(key))}")
         else:
             out.append(line)
-    out.extend(f"{k}={v}" for k, v in remaining.items())
-    ENV_FILE.write_text("\n".join(out) + "\n")
+    out.extend(f"{k}={_quote(v)}" for k, v in remaining.items())
+    ENV_FILE.write_text("\n".join(out) + "\n", encoding="utf-8")
     try:
         ENV_FILE.chmod(0o600)
     except OSError:

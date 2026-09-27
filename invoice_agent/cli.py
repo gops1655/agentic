@@ -230,13 +230,11 @@ def setup_wizard() -> Settings:
 
     values = {
         "EMAIL_ADDRESS": Prompt.ask("Email address", default=current.email_address or None),
-        "EMAIL_PASSWORD": Prompt.ask("Email (app) password", password=True,
-                                     default=current.email_password or None, show_default=False),
+        "EMAIL_PASSWORD": _ask_secret("Email (app) password", current.email_password, strip_spaces=True),
         "IMAP_HOST": imap_host, "IMAP_PORT": imap_port,
         "SMTP_HOST": smtp_host, "SMTP_PORT": smtp_port, "SMTP_SECURITY": security,
         "IMAP_FOLDER": Prompt.ask("Folder to watch", default=current.imap_folder),
-        "ANTHROPIC_API_KEY": Prompt.ask("Anthropic API key", password=True,
-                                        default=current.anthropic_api_key or None, show_default=False),
+        "ANTHROPIC_API_KEY": _ask_secret("Anthropic API key (starts with sk-ant-)", current.anthropic_api_key),
         "ALLOWED_SENDERS": Prompt.ask("Only process mail from (comma-separated senders/domains, blank = all)",
                                       default=",".join(current.allowed_senders)),
         "SUBJECT_KEYWORDS": Prompt.ask("Only subjects containing (comma-separated, blank = any)",
@@ -250,6 +248,20 @@ def setup_wizard() -> Settings:
     write_env({k: v or "" for k, v in values.items()})
     console.print(f"[green]Saved to {ENV_FILE}[/green]")
     return Settings.load()
+
+
+def _ask_secret(label: str, current: str, strip_spaces: bool = False) -> str:
+    """Hidden prompt that keeps the saved value on Enter and rejects non-ASCII typos."""
+    hint = " (press Enter to keep the saved one)" if current else ""
+    while True:
+        value = Prompt.ask(f"{label}{hint}", password=True, default=current or "", show_default=False).strip()
+        if strip_spaces:
+            value = value.replace(" ", "")  # Gmail shows app passwords as 'abcd efgh ijkl mnop'
+        if not value.isascii():
+            console.print("[red]That contains a non-English character (check keyboard language / "
+                          "copy-paste). Please type it again.[/red]")
+            continue
+        return value
 
 
 def test_connections(settings: Settings) -> None:
