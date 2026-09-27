@@ -22,7 +22,18 @@ same email thread with the Excel file attached.
 
 If one email has several PDFs, or one PDF holds several invoices, they all go into one workbook.
 
-## Setup
+## Quick start on a Windows PC
+
+1. Install **Python** from <https://www.python.org/downloads/>. On the first installer screen, tick
+   **"Add python.exe to PATH"**.
+2. Download this project (GitHub → **Code** → **Download ZIP**) and unzip it, e.g. to `C:\InvoiceAgent`.
+3. Double-click **`start.bat`**. The first run installs everything, then the setup wizard asks for
+   your email, app password and Anthropic API key.
+4. Use the menu. Excel files are saved in the `output` folder.
+
+On macOS/Linux run `./start.sh` instead.
+
+## Setup (manual)
 
 1. **Python 3.10+**, then install the dependencies:
    ```bash
