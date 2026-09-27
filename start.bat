@@ -1,5 +1,5 @@
 @echo off
-REM Double-click this file to start the Invoice Agent on Windows.
+REM Double-click this file to set up / open the Invoice Agent on Windows.
 cd /d "%~dp0"
 
 where python >nul 2>nul
@@ -13,13 +13,15 @@ if errorlevel 1 (
 if not exist .venv (
     echo First run: setting up, this takes a minute...
     python -m venv .venv
-    call .venv\Scripts\activate.bat
-    python -m pip install --upgrade pip >nul
-    pip install -r requirements.txt
-) else (
-    call .venv\Scripts\activate.bat
+    .venv\Scripts\python.exe -m pip install --upgrade pip >nul
 )
+call .venv\Scripts\activate.bat
+echo Checking components...
+pip install -q --disable-pip-version-check -r requirements.txt
 
 set PYTHONIOENCODING=utf-8
+if not exist "data\shortcut.done" (
+    python main.py install-shortcut && (if not exist data mkdir data) && echo done> "data\shortcut.done"
+)
 python main.py %*
 pause

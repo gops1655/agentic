@@ -283,6 +283,22 @@ def _test_claude(settings: Settings) -> str:
     return f"Claude OK - model {model.display_name} available"
 
 
+def start_tray_detached() -> None:
+    """Launch the tray app as its own windowless process."""
+    import subprocess
+    from .config import ROOT
+    exe = Path(sys.executable)
+    pythonw = exe.with_name("pythonw.exe")
+    if sys.platform == "win32" and pythonw.exists():
+        subprocess.Popen([str(pythonw), "main.py", "tray"], cwd=ROOT,
+                         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        subprocess.Popen([str(exe), "main.py", "tray"], cwd=ROOT, start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    console.print("[green]Invoice Agent is now running in the tray (bottom-right, near the clock; "
+                  "check the ^ arrow if you don't see it). You can close this window.[/green]")
+
+
 # ---------------------------------------------------------------- menu
 MENU = """[bold]1[/bold]  Check inbox now (review each invoice before replying)
 [bold]2[/bold]  Start auto-pilot (keep watching the inbox)
@@ -290,6 +306,7 @@ MENU = """[bold]1[/bold]  Check inbox now (review each invoice before replying)
 [bold]4[/bold]  View history
 [bold]5[/bold]  Test connections
 [bold]6[/bold]  Setup / change settings
+[bold]7[/bold]  Run in background (tray icon near the clock) and close this window
 [bold]0[/bold]  Exit"""
 
 
@@ -303,7 +320,7 @@ def interactive() -> None:
 
     while True:
         console.print(Panel(MENU, title="Menu", expand=False))
-        choice = Prompt.ask("Choose", choices=["1", "2", "3", "4", "5", "6", "0"], default="1")
+        choice = Prompt.ask("Choose", choices=["1", "2", "3", "4", "5", "6", "7", "0"], default="1")
         try:
             if choice == "1":
                 console.print(f"Done: {run_once(settings, ask=True)}")
@@ -318,6 +335,9 @@ def interactive() -> None:
                 test_connections(settings)
             elif choice == "6":
                 settings = setup_wizard()
+            elif choice == "7":
+                start_tray_detached()
+                return
             else:
                 return
         except MAIL_ERRORS as e:
@@ -338,6 +358,8 @@ def main(argv: list[str] | None = None) -> None:
     conv = sub.add_parser("convert", help="Convert local PDF file(s) to Excel")
     conv.add_argument("pdfs", nargs="+", type=Path)
     sub.add_parser("history", help="Show processed emails")
+    sub.add_parser("tray", help="Run in the system tray with an On/Off switch")
+    sub.add_parser("install-shortcut", help="Create the desktop icon (Windows)")
     args = parser.parse_args(argv)
 
     if args.command in (None, "menu"):
@@ -345,6 +367,14 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "setup":
         setup_wizard()
+        return
+    if args.command == "tray":
+        from .tray import main as tray_main
+        tray_main()
+        return
+    if args.command == "install-shortcut":
+        from .tray import create_desktop_shortcut
+        console.print(create_desktop_shortcut())
         return
 
     settings = Settings.load()

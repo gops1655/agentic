@@ -33,6 +33,27 @@ If one email has several PDFs, or one PDF holds several invoices, they all go in
 
 On macOS/Linux run `./start.sh` instead.
 
+## Everyday use: the tray icon (no black window)
+
+After the first `start.bat` run there is an **Invoice Agent** icon on your desktop. Double-click it
+and a small icon appears near the clock (look under the **^** arrow). The agent then runs in the
+background:
+
+| Icon colour | Meaning |
+|---|---|
+| Green | ON: checking the inbox and replying automatically |
+| Grey | OFF (paused) |
+| Yellow | Checking right now |
+| Red | Problem; hover to see it, or right-click → View log |
+
+**Left-click** the icon to turn it ON/OFF. **Right-click** for the menu: *Check inbox now*,
+*Open Excel folder*, *Review inbox manually*, *History*, *View log*, *Settings*,
+**Start with Windows** (tick it once and it starts on every boot), and *Quit*. The ON/OFF choice
+is remembered across restarts.
+
+In tray mode replies are sent automatically. To approve each reply, use *Review inbox manually*
+instead of turning the agent ON.
+
 ## Setup (manual)
 
 1. **Python 3.10+**, then install the dependencies:
