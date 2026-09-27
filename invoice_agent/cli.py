@@ -235,10 +235,17 @@ def setup_wizard() -> Settings:
         "SMTP_HOST": smtp_host, "SMTP_PORT": smtp_port, "SMTP_SECURITY": security,
         "IMAP_FOLDER": Prompt.ask("Folder to watch", default=current.imap_folder),
         "ANTHROPIC_API_KEY": _ask_secret("Anthropic API key (starts with sk-ant-)", current.anthropic_api_key),
-        "ALLOWED_SENDERS": Prompt.ask("Only process mail from (comma-separated senders/domains, blank = all)",
+        "ALLOWED_SENDERS": Prompt.ask("Only process mail from these senders/domains, comma-separated "
+                                      "(e.g. zionexpress.com; blank = everyone)",
                                       default=",".join(current.allowed_senders)),
         "SUBJECT_KEYWORDS": Prompt.ask("Only subjects containing (comma-separated, blank = any)",
                                        default=",".join(current.subject_keywords)),
+        "SEARCH_SINCE_DAYS": "0" if Confirm.ask("Only check emails received TODAY?",
+                                                default=current.search_since_days <= 0)
+                             else str(IntPrompt.ask("Look back how many days?",
+                                                    default=max(1, current.search_since_days))),
+        "ONLY_UNREAD": str(not Confirm.ask("Also process emails you have already opened/read?",
+                                           default=not current.only_unread)).lower(),
         "POLL_INTERVAL_MINUTES": str(IntPrompt.ask("Check inbox every N minutes",
                                                    default=current.poll_interval_minutes)),
         "REQUIRE_APPROVAL": str(Confirm.ask("In auto-pilot, ask me before sending each reply?",

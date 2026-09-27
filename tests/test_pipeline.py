@@ -120,3 +120,26 @@ def test_retryable_error_does_not_fail_file(tmp_path, monkeypatch):
     a = make_agent(tmp_path, monkeypatch, FakeExtractor(ExtractionError("rate limit", retryable=True)))
     result = a.convert_email(parse_email("7", make_raw_email()))
     assert result.retry_later and not result.failed_files and result.excel_path is None
+
+
+def test_zionexpress_today_only():
+    from datetime import date
+    from invoice_agent.mailer import _from_criteria, received_today, sender_allowed
+
+    assert sender_allowed("billing@zionexpress.com", ["zionexpress.com"])
+    assert sender_allowed("a@mail.zionexpress.com", ["@zionexpress.com"])
+    assert not sender_allowed("a@notzionexpress.com", ["zionexpress.com"])
+    assert sender_allowed("x@acme.in", ["zionexpress.com", "x@acme.in"])
+    assert _from_criteria(["zionexpress.com"]) == ["FROM", '"zionexpress.com"']
+    assert _from_criteria(["a.com", "b.com"]) == ["OR", "FROM", '"a.com"', "FROM", '"b.com"']
+
+    mail = parse_email("1", make_raw_email(sender="Zion <inv@zionexpress.com>"))
+    mail.date = "Sun, 27 Sep 2026 10:00:00 +0530"
+    assert received_today(mail, today=date(2026, 9, 27)) or received_today(mail, today=date(2026, 9, 26))
+    assert not received_today(mail, today=date(2026, 9, 29))
+
+    s = settings(allowed_senders=["zionexpress.com"], search_since_days=0)
+    mail.date = __import__("email.utils", fromlist=["x"]).formatdate(localtime=True)
+    assert matches_filters(mail, s)
+    mail.date = "Mon, 01 Jan 2024 10:00:00 +0530"
+    assert not matches_filters(mail, s)

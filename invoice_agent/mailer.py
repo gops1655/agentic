@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from email import message_from_bytes, policy
 from email.message import EmailMessage
-from email.utils import formataddr, getaddresses, make_msgid, parseaddr
+from email.utils import formataddr, getaddresses, make_msgid, parseaddr, parsedate_to_datetime
 from pathlib import Path
 
 from .config import Settings
@@ -83,15 +83,52 @@ def matches_filters(mail: IncomingEmail, settings: Settings) -> bool:
     sender = mail.sender_email
     if settings.email_address and sender == settings.email_address.lower():
         return False  # never process our own replies
-    if settings.allowed_senders:
-        domain = sender.rsplit("@", 1)[-1]
-        if not any(a == sender or a.lstrip("@") == domain for a in settings.allowed_senders):
-            return False
+    if settings.allowed_senders and not sender_allowed(sender, settings.allowed_senders):
+        return False
+    if settings.search_since_days <= 0 and not received_today(mail):
+        return False
     if settings.subject_keywords:
         subject = mail.subject.lower()
         if not any(k in subject for k in settings.subject_keywords):
             return False
     return True
+
+
+def sender_allowed(sender: str, allowed: list[str]) -> bool:
+    """Match an exact address, or a domain (with or without '@') including its subdomains."""
+    domain = sender.rsplit("@", 1)[-1]
+    for entry in allowed:
+        if "@" in entry.lstrip("@"):
+            if entry == sender:
+                return True
+        else:
+            d = entry.lstrip("@")
+            if domain == d or domain.endswith("." + d):
+                return True
+    return False
+
+
+def received_today(mail: IncomingEmail, today: date | None = None) -> bool:
+    """True when the email's Date header falls on today's date in this PC's timezone."""
+    try:
+        sent = parsedate_to_datetime(mail.date)
+    except (TypeError, ValueError, IndexError):
+        return True  # unreadable date: rely on the server's SINCE filter
+    if sent is None:
+        return True
+    local = sent.astimezone() if sent.tzinfo else sent
+    return local.date() == (today or date.today())
+
+
+def _from_criteria(allowed: list[str]) -> list[str]:
+    """IMAP FROM search terms so the server only returns mail from allowed senders."""
+    terms = [["FROM", f'"{a.lstrip("@")}"'] for a in allowed]
+    if not terms:
+        return []
+    criteria = terms[-1]
+    for term in reversed(terms[:-1]):
+        criteria = ["OR", *term, *criteria]
+    return criteria
 
 
 class Mailbox:
@@ -122,8 +159,10 @@ class Mailbox:
             pass
 
     def search_uids(self) -> list[str]:
-        since = (date.today() - timedelta(days=self.s.search_since_days)).strftime("%d-%b-%Y")
-        criteria = ["SINCE", since]
+        # One extra day of margin for timezone differences; received_today() does the exact check.
+        days = self.s.search_since_days if self.s.search_since_days > 0 else 1
+        since = (date.today() - timedelta(days=days)).strftime("%d-%b-%Y")
+        criteria = ["SINCE", since, *_from_criteria(self.s.allowed_senders)]
         if self.s.only_unread:
             criteria.insert(0, "UNSEEN")
         status, data = self.imap.uid("SEARCH", None, *criteria)
